@@ -1,6 +1,9 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: '/api' })
+// In development Vite proxies /api to localhost:8000 (vite.config.ts).
+// In production set VITE_API_BASE_URL=https://your-backend.com/api in the
+// deployment environment so cross-origin requests reach the correct host.
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api' })
 
 // Attach JWT token to every request if present
 api.interceptors.request.use((config) => {

@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from ml.agents.base_agent      import AgentStatus
 from ml.agents.market_monitor  import MarketMonitorAgent
 from ml.agents.forecast_agent  import ForecastAgent
 from ml.agents.decision_agent  import DecisionAgent
@@ -89,6 +90,11 @@ class AgentOrchestrator:
         # Step 3 — Rebalance
         rebalance_result = await self.rebalancer.run(decision)
 
+        # Propagate executed allocation back to DecisionAgent so future drift
+        # checks compare against what was actually deployed, not an empty baseline.
+        if rebalance_result.get("rebalanced"):
+            self.decision.current_portfolio = decision["allocations"]
+
         summary = {
             "trigger":          trigger,
             "timestamp":        start.isoformat(),
@@ -133,25 +139,24 @@ class AgentOrchestrator:
     async def run_with_monitor(self, max_polls: int = 5) -> None:
         """
         Run the market monitor alongside the pipeline.
-        Triggers a pipeline run whenever an alert is detected.
+        Triggers a pipeline run as a concurrent task whenever an alert is detected.
 
         Args:
             max_polls: Number of monitor polls before stopping (for testing)
         """
-        async def monitor_loop():
-            self.monitor.status = __import__("ml.agents.base_agent", fromlist=["AgentStatus"]).AgentStatus.RUNNING
-            for _ in range(max_polls):
-                prices = self.monitor.fetch_latest()
-                alerts = self.monitor.detect_shifts(prices)
-                self.monitor.last_prices.update(prices)
+        self.monitor.status = AgentStatus.RUNNING
+        for _ in range(max_polls):
+            prices = await self.monitor.fetch_latest()
+            alerts = self.monitor.detect_shifts(prices)
+            self.monitor.last_prices.update(prices)
 
-                if alerts:
-                    logger.info(f"Alert detected! Triggering pipeline...")
-                    await self.run_pipeline(trigger="alert")
+            if alerts:
+                logger.info("Alert detected! Triggering pipeline...")
+                asyncio.create_task(self.run_pipeline(trigger="alert"))
 
-                await asyncio.sleep(self.monitor.poll_interval)
+            await asyncio.sleep(self.monitor.poll_interval)
 
-        await monitor_loop()
+        self.monitor.status = AgentStatus.IDLE
 
     # ── Status ─────────────────────────────────────────────────────────────────
 

@@ -79,15 +79,18 @@ def _forecast_step(
 ) -> dict[str, float]:
     """
     Run LSTM inference at step t for all pairs.
-    Returns forecast_return per pair (predicted vs actual at t).
+    Returns forecast_return per pair: (predicted_next - current_price) / current_price.
+
+    y[t] is the TARGET for window X[t] (the price one step ahead of the window).
+    The "current" known price is y[t-1]; for t=0 we fall back to y[0].
     """
     returns = {}
     for pair, model in models.items():
         X = torch.tensor(test_data[pair]["X"][t : t + 1], dtype=torch.float32)
         with torch.no_grad():
-            pred = float(model(X).item())
-        actual = float(test_data[pair]["y"][t])
-        returns[pair] = (pred - actual) / (actual + 1e-8)
+            pred = float(model(X).cpu().item())
+        current = float(test_data[pair]["y"][t - 1] if t > 0 else test_data[pair]["y"][t])
+        returns[pair] = (pred - current) / (current + 1e-8)
     return returns
 
 
@@ -131,32 +134,23 @@ def run_backtest(
     # Buy-and-hold: fix allocation on day 0 equally
     bnh_weights = {p: 1.0 / len(models) for p in models}
 
-    # LP: track current weights (start equal)
-    lp_weights  = {p: 1.0 / len(models) for p in models}
+    # LP: start equal-weight; updated AFTER each step so weights always lag
+    # one step behind the return they are applied to (no look-ahead).
+    lp_weights   = {p: 1.0 / len(models) for p in models}
+    lp_fail_count = 0   # track consecutive LP failures for stale-weight detection
 
     # Daily interest rates
     daily_interest = {p: INTEREST_RATES.get(p, 0.02) / 365 for p in models}
 
     for t in range(n_steps):
-        # ── Actual returns at step t+1 ──
+        # ── Step 1: Earn actual returns using weights decided at the PREVIOUS step ──
+        # This ordering eliminates look-ahead: we cannot use today's forecast to
+        # earn today's return because the forecast is computed AFTER this block.
         actual_returns = {}
         for pair in models:
-            y_t      = float(test_data[pair]["y"][t])
-            y_t1     = float(test_data[pair]["y"][t + 1])
+            y_t  = float(test_data[pair]["y"][t])
+            y_t1 = float(test_data[pair]["y"][t + 1])
             actual_returns[pair] = (y_t1 - y_t) / (y_t + 1e-8) + daily_interest[pair]
-
-        # ── LP strategy: rebalance on schedule ──
-        if t % rebalance_every == 0:
-            try:
-                forecast_returns = _forecast_step(models, test_data, t)
-                result = optimize_portfolio(
-                    forecast_returns=forecast_returns,
-                    budget=lp_equity[t],
-                    risk_tolerance=risk_tolerance,
-                )
-                lp_weights = result["allocations"]
-            except Exception as exc:
-                logger.warning(f"  LP failed at t={t}: {exc} — keeping last weights")
 
         lp_return  = sum(lp_weights[p]  * actual_returns[p] for p in models)
         ew_return  = sum((1 / len(models)) * actual_returns[p] for p in models)
@@ -165,6 +159,30 @@ def run_backtest(
         lp_equity[t + 1]  = lp_equity[t]  * (1 + lp_return)
         ew_equity[t + 1]  = ew_equity[t]  * (1 + ew_return)
         bnh_equity[t + 1] = bnh_equity[t] * (1 + bnh_return)
+
+        # ── Step 2: Forecast and update weights for the NEXT step ──
+        if t % rebalance_every == 0:
+            try:
+                forecast_returns = _forecast_step(models, test_data, t)
+                result = optimize_portfolio(
+                    forecast_returns=forecast_returns,
+                    budget=lp_equity[t + 1],
+                    risk_tolerance=risk_tolerance,
+                )
+                lp_weights    = result["allocations"]
+                lp_fail_count = 0
+            except Exception as exc:
+                lp_fail_count += 1
+                if lp_fail_count >= 3:
+                    lp_weights    = {p: 1.0 / len(models) for p in models}
+                    lp_fail_count = 0
+                    logger.warning(
+                        f"  LP failed 3× in a row at t={t}: {exc} — reset to equal weights"
+                    )
+                else:
+                    logger.warning(
+                        f"  LP failed at t={t} ({lp_fail_count}/3): {exc} — keeping last weights"
+                    )
 
         if (t + 1) % 20 == 0:
             logger.info(
@@ -180,7 +198,7 @@ def run_backtest(
         X   = torch.tensor(test_data[pair]["X"], dtype=torch.float32)
         y   = test_data[pair]["y"]
         with torch.no_grad():
-            preds = model(X).numpy().squeeze()
+            preds = model(X).cpu().numpy().squeeze()
         forecast_metrics[pair] = metrics_report(pair, y, preds)
 
     # ── Portfolio performance ──

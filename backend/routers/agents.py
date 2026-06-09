@@ -34,6 +34,7 @@ async def run_pipeline(body: PipelineRunRequest):
         trigger=body.trigger,
         budget=body.budget,
         risk_tolerance=body.risk_tolerance,
+        simulation=body.simulation,
     )
 
 
@@ -42,16 +43,20 @@ async def websocket_log(websocket: WebSocket):
     """
     WebSocket endpoint — streams agent log entries in real time.
     The frontend connects here to receive live agent activity updates.
+
+    Uses a timestamp cursor instead of a list-index counter so the stream
+    remains correct even if the log is pruned, reset, or capped at max entries.
     """
     await websocket.accept()
-    seen = 0
+    last_sent_ts = ""
     try:
         while True:
             log = agent_service.get_log(limit=200)
-            new_entries = log[seen:]
+            new_entries = [e for e in log if e.get("timestamp", "") > last_sent_ts]
             for entry in new_entries:
                 await websocket.send_json(entry)
-            seen += len(new_entries)
+            if new_entries:
+                last_sent_ts = new_entries[-1].get("timestamp", last_sent_ts)
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass

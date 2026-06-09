@@ -22,6 +22,8 @@ TICKERS = {
     "NZD_USD": "NZDUSD=X",
 }
 
+_FETCH_TIMEOUT_SECONDS = 10
+
 
 class MarketMonitorAgent(BaseAgent):
     """
@@ -40,15 +42,31 @@ class MarketMonitorAgent(BaseAgent):
         self.last_prices: dict[str, float] = {}
         self.alerts: list[dict] = []
 
-    def fetch_latest(self) -> dict[str, float]:
-        """Fetch the most recent close price for each pair."""
+    async def fetch_latest(self) -> dict[str, float]:
+        """
+        Fetch the most recent close price for each pair.
+        Each ticker download runs in a thread pool executor with a hard timeout
+        so a hung network call never blocks the asyncio event loop.
+        """
+        loop   = asyncio.get_event_loop()
         prices = {}
         for name, ticker in TICKERS.items():
             try:
-                data = yf.download(ticker, period="2d", interval="1d",
-                                   auto_adjust=True, progress=False)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda t=ticker: yf.download(
+                            t, period="2d", interval="1d",
+                            auto_adjust=True, progress=False,
+                        ),
+                    ),
+                    timeout=_FETCH_TIMEOUT_SECONDS,
+                )
                 if not data.empty:
                     prices[name] = float(data["Close"].iloc[-1])
+            except asyncio.TimeoutError:
+                self.status = AgentStatus.ERROR
+                self._record("fetch_timeout", {"pair": name, "timeout": _FETCH_TIMEOUT_SECONDS})
             except Exception as exc:
                 self.status = AgentStatus.ERROR
                 self._record("fetch_error", {"pair": name, "error": str(exc)})
@@ -83,7 +101,7 @@ class MarketMonitorAgent(BaseAgent):
         polls = 0
 
         while True:
-            current = self.fetch_latest()
+            current = await self.fetch_latest()
             if current:
                 alerts = self.detect_shifts(current)
                 self.last_prices.update(current)
