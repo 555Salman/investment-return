@@ -78,8 +78,15 @@ class ForecastAgent(BaseAgent):
         if pair not in self._models:
             return None
 
-        X_test = np.load(PROCESSED_DIR / pair / "X_test.npy")
-        y_test = np.load(PROCESSED_DIR / pair / "y_test.npy")
+        try:
+            X_test = np.load(PROCESSED_DIR / pair / "X_test.npy")
+            y_test = np.load(PROCESSED_DIR / pair / "y_test.npy")
+        except FileNotFoundError:
+            self._record("data_missing", {
+                "pair": pair,
+                "hint": "Run: python run_pipeline.py to generate processed data",
+            })
+            return None
 
         # Use the last window in the test set as "current market state"
         last_window = torch.tensor(X_test[-1:], dtype=torch.float32)  # (1, 60, features)

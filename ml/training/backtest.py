@@ -82,13 +82,14 @@ def _forecast_step(
     Returns forecast_return per pair: (predicted_next - current_price) / current_price.
 
     y[t] is the TARGET for window X[t] (the price one step ahead of the window).
-    The "current" known price is y[t-1]; for t=0 we fall back to y[0].
+    The "current" known price is therefore y[t-1]; for t=0 we fall back to y[0].
     """
     returns = {}
     for pair, model in models.items():
         X = torch.tensor(test_data[pair]["X"][t : t + 1], dtype=torch.float32)
         with torch.no_grad():
             pred = float(model(X).cpu().item())
+        # current price = last known close before this prediction window
         current = float(test_data[pair]["y"][t - 1] if t > 0 else test_data[pair]["y"][t])
         returns[pair] = (pred - current) / (current + 1e-8)
     return returns

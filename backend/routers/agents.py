@@ -3,8 +3,9 @@ Agent management endpoints + WebSocket for live agent log streaming.
 """
 
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
+from backend.core.security import get_current_user
 from backend.models.schemas import PipelineRunRequest
 from backend.services.agent_service import agent_service
 
@@ -12,19 +13,19 @@ router = APIRouter(prefix="/api/agents", tags=["Agents"])
 
 
 @router.get("/status", summary="Get status of all agents")
-def get_status():
+def get_status(_: dict = Depends(get_current_user)):
     """Returns current status (idle/running/alert/error) for each agent."""
     return agent_service.get_status()
 
 
 @router.get("/log", summary="Get recent agent decision log")
-def get_log(limit: int = 50):
+def get_log(limit: int = 50, _: dict = Depends(get_current_user)):
     """Returns the last `limit` entries from the combined agent log."""
     return agent_service.get_log(limit=limit)
 
 
 @router.post("/run", summary="Manually trigger the investment pipeline")
-async def run_pipeline(body: PipelineRunRequest):
+async def run_pipeline(body: PipelineRunRequest, _: dict = Depends(get_current_user)):
     """
     Triggers one full pipeline cycle:
     Forecast → Decision → Rebalance.
@@ -39,14 +40,22 @@ async def run_pipeline(body: PipelineRunRequest):
 
 
 @router.websocket("/ws/log")
-async def websocket_log(websocket: WebSocket):
+async def websocket_log(websocket: WebSocket, token: str = ""):
     """
     WebSocket endpoint — streams agent log entries in real time.
-    The frontend connects here to receive live agent activity updates.
+    Pass JWT as a query parameter: /ws/log?token=<bearer-token>
 
     Uses a timestamp cursor instead of a list-index counter so the stream
     remains correct even if the log is pruned, reset, or capped at max entries.
     """
+    from backend.core.security import decode_token
+    from fastapi import status as http_status
+    try:
+        decode_token(token)
+    except Exception:
+        await websocket.close(code=http_status.WS_1008_POLICY_VIOLATION)
+        return
+
     await websocket.accept()
     last_sent_ts = ""
     try:
