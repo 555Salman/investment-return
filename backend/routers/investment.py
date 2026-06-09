@@ -31,21 +31,30 @@ PAIR_LABELS   = {
     "NZD_USD": "New Zealand Dollar (NZD)",
 }
 
-# Cache loaded models across requests
-_model_cache: dict[str, LSTMForecaster] = {}
+_model_cache:  dict[str, LSTMForecaster] = {}
+_cache_mtimes: dict[str, float] = {}
+
+_CHECKPOINTS_DIR = Path(__file__).resolve().parents[2] / "data" / "checkpoints"
 
 
 def _load_models() -> dict[str, LSTMForecaster]:
-    global _model_cache
-    if _model_cache:
-        return _model_cache
+    """Load models, reloading any whose checkpoint file has changed since last load."""
+    global _model_cache, _cache_mtimes
     for pair in PAIRS:
+        ckpt = _CHECKPOINTS_DIR / f"{pair}_best.pt"
+        try:
+            mtime = ckpt.stat().st_mtime
+        except FileNotFoundError:
+            continue
+        if _model_cache.get(pair) is not None and _cache_mtimes.get(pair) == mtime:
+            continue  # still fresh
         try:
             X = np.load(PROCESSED_DIR / pair / "X_test.npy")
             m = LSTMForecaster(input_size=X.shape[2])
             m = load_model(m, pair, tag="best")
             m.eval()
-            _model_cache[pair] = m
+            _model_cache[pair]  = m
+            _cache_mtimes[pair] = mtime
         except FileNotFoundError:
             pass
     return _model_cache
@@ -125,14 +134,17 @@ def calculate(body: InvestmentRequest):
     )
     filtered_returns = {p: forecast_returns[p] for p in active_pairs if p in forecast_returns}
 
-    result = optimize_portfolio(
-        forecast_returns=filtered_returns,
-        budget=body.budget,
-        risk_tolerance=body.risk_tolerance,
-        min_weight=0.05,
-        max_weight=0.70,
-        investment_days=investment_days,
-    )
+    try:
+        result = optimize_portfolio(
+            forecast_returns=filtered_returns,
+            budget=body.budget,
+            risk_tolerance=body.risk_tolerance,
+            min_weight=0.05,
+            max_weight=0.70,
+            investment_days=investment_days,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Portfolio optimisation failed: {exc}")
 
     projections = []
     for pair in result["pairs"]:

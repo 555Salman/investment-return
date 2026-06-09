@@ -109,10 +109,12 @@ def optimize_portfolio(
         method="highs",
     )
 
-    if result.status != 0:
-        logger.warning(f"LP solver returned status {result.status}: {result.message}")
+    if result.status != 0 or result.x is None:
+        raise ValueError(
+            f"LP infeasible (status={result.status}): {result.message}"
+        )
 
-    weights = result.x if result.x is not None else np.ones(n) / n
+    weights = result.x
     weights = np.clip(weights, min_weight, max_weight)
     weights /= weights.sum()   # re-normalise after clipping
 

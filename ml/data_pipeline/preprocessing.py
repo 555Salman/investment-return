@@ -209,6 +209,13 @@ def run_pipeline(
         # Save scaler so predictions can be inverse-transformed later
         with open(out / "scaler.pkl", "wb") as f:
             pickle.dump(scaler, f)
+
+        # Save column order so the forecast endpoint can inverse-transform
+        # the correct feature index without hardcoding it.
+        import json
+        with open(out / "feature_columns.json", "w") as f:
+            json.dump(feature_cols, f)
+
         logger.info(f"  Saved processed data → {out}")
 
     return {

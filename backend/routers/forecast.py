@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import json
 import pickle
 
 import numpy as np
@@ -90,9 +91,16 @@ def get_pair_history(pair: str, _: dict = Depends(get_current_user)):
         with open(scaler_path, "rb") as f:
             scaler = pickle.load(f)
 
-        # Close is index 3 in ["Open","High","Low","Close","log_return","rolling_vol_30","rolling_vol_60"]
-        close_idx  = 3
-        n_features = 7
+        # Derive feature count and Close index from saved metadata so this
+        # code stays correct if preprocessing ever reorders columns.
+        n_features = scaler.n_features_in_
+        col_meta = base / "feature_columns.json"
+        if col_meta.exists():
+            with open(col_meta) as f:
+                _cols = json.load(f)
+            close_idx = _cols.index("Close") if "Close" in _cols else 3
+        else:
+            close_idx = 3
 
         def inv_close(vals: np.ndarray) -> np.ndarray:
             dummy = np.zeros((len(vals), n_features))

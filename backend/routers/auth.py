@@ -1,7 +1,10 @@
 """
 Auth endpoints — simple JWT login for the dashboard.
-Demo credentials: admin / password123  (replace with DB-backed auth for production)
+Credentials are read from DEMO_USERNAME / DEMO_PASSWORD environment variables.
+Leave DEMO_PASSWORD unset in production to disable the demo account entirely.
 """
+
+import os
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -10,10 +13,17 @@ from backend.models.schemas import LoginRequest, TokenResponse
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
-# Demo user store — replace with database lookup in production
-DEMO_USERS = {
-    "admin": hash_password("password123"),
-}
+
+def _build_demo_users() -> dict[str, str]:
+    username = os.getenv("DEMO_USERNAME", "")
+    password = os.getenv("DEMO_PASSWORD", "")
+    if username and password:
+        return {username: hash_password(password)}
+    return {}
+
+
+# Populated at startup from env vars; empty dict → login always fails (safe default).
+DEMO_USERS: dict[str, str] = _build_demo_users()
 
 
 @router.post("/login", response_model=TokenResponse)
