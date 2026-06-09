@@ -79,15 +79,19 @@ def _forecast_step(
 ) -> dict[str, float]:
     """
     Run LSTM inference at step t for all pairs.
-    Returns forecast_return per pair (predicted vs actual at t).
+    Returns forecast_return per pair: (predicted_next - current_price) / current_price.
+
+    y[t] is the TARGET for window X[t] (the price one step ahead of the window).
+    The "current" known price is therefore y[t-1]; for t=0 we fall back to y[0].
     """
     returns = {}
     for pair, model in models.items():
         X = torch.tensor(test_data[pair]["X"][t : t + 1], dtype=torch.float32)
         with torch.no_grad():
-            pred = float(model(X).item())
-        actual = float(test_data[pair]["y"][t])
-        returns[pair] = (pred - actual) / (actual + 1e-8)
+            pred = float(model(X).cpu().item())
+        # current price = last known close before this prediction window
+        current = float(test_data[pair]["y"][t - 1] if t > 0 else test_data[pair]["y"][t])
+        returns[pair] = (pred - current) / (current + 1e-8)
     return returns
 
 
@@ -180,7 +184,7 @@ def run_backtest(
         X   = torch.tensor(test_data[pair]["X"], dtype=torch.float32)
         y   = test_data[pair]["y"]
         with torch.no_grad():
-            preds = model(X).numpy().squeeze()
+            preds = model(X).cpu().numpy().squeeze()
         forecast_metrics[pair] = metrics_report(pair, y, preds)
 
     # ── Portfolio performance ──

@@ -50,6 +50,9 @@ class DecisionAgent(BaseAgent):
             pair: abs(proposed[pair] - self.current_portfolio.get(pair, 0.0))
             for pair in proposed
         }
+        if not drifts:
+            return True, {}   # no pairs in proposal → trigger rebalance as safety default
+
         max_drift = max(drifts.values())
         return max_drift >= REBALANCE_THRESHOLD, drifts
 
@@ -94,6 +97,9 @@ class DecisionAgent(BaseAgent):
             "expected_return_pct": f"{result['expected_return_pct']*100:.2f}%",
             "allocations":         {p: f"{w*100:.1f}%" for p, w in proposed.items()},
         })
+
+        # Track latest recommended allocation so future drift checks have a valid baseline
+        self.current_portfolio = proposed
 
         self.status = AgentStatus.IDLE
         return decision

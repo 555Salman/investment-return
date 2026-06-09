@@ -10,8 +10,9 @@ import pickle
 
 import numpy as np
 import torch
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.core.security import get_current_user
 from backend.services.forecast_service import forecast_service
 from ml.models.lstm_model  import LSTMForecaster
 from ml.models.model_utils import load_model
@@ -23,7 +24,7 @@ PROCESSED_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
 
 
 @router.get("/", summary="Get forecasts for all currency pairs")
-async def get_all_forecasts():
+async def get_all_forecasts(_: dict = Depends(get_current_user)):
     """
     Returns next-step LSTM forecasts for EUR/USD, AUD/USD, NZD/USD.
     Models must be trained before calling this endpoint.
@@ -38,7 +39,7 @@ async def get_all_forecasts():
 
 
 @router.get("/{pair}", summary="Get forecast for a single currency pair")
-async def get_pair_forecast(pair: str):
+async def get_pair_forecast(pair: str, _: dict = Depends(get_current_user)):
     """
     Returns the LSTM forecast for a specific pair.
     Pair format: EUR_USD | AUD_USD | NZD_USD
@@ -58,7 +59,7 @@ async def get_pair_forecast(pair: str):
 
 
 @router.get("/{pair}/history", summary="Full actual vs predicted series for the test set")
-def get_pair_history(pair: str):
+def get_pair_history(pair: str, _: dict = Depends(get_current_user)):
     """
     Returns the complete test-set actual prices and LSTM predictions
     so the frontend can draw a proper historical chart.
