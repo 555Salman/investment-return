@@ -90,6 +90,11 @@ class AgentOrchestrator:
         # Step 3 — Rebalance
         rebalance_result = await self.rebalancer.run(decision)
 
+        # Propagate executed allocation back to DecisionAgent so future drift
+        # checks compare against what was actually deployed, not an empty baseline.
+        if rebalance_result.get("rebalanced"):
+            self.decision.current_portfolio = decision["allocations"]
+
         summary = {
             "trigger":          trigger,
             "timestamp":        start.isoformat(),
@@ -141,7 +146,7 @@ class AgentOrchestrator:
         """
         self.monitor.status = AgentStatus.RUNNING
         for _ in range(max_polls):
-            prices = self.monitor.fetch_latest()
+            prices = await self.monitor.fetch_latest()
             alerts = self.monitor.detect_shifts(prices)
             self.monitor.last_prices.update(prices)
 

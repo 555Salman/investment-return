@@ -35,6 +35,7 @@ async def run_pipeline(body: PipelineRunRequest, _: dict = Depends(get_current_u
         trigger=body.trigger,
         budget=body.budget,
         risk_tolerance=body.risk_tolerance,
+        simulation=body.simulation,
     )
 
 
@@ -43,6 +44,9 @@ async def websocket_log(websocket: WebSocket, token: str = ""):
     """
     WebSocket endpoint — streams agent log entries in real time.
     Pass JWT as a query parameter: /ws/log?token=<bearer-token>
+
+    Uses a timestamp cursor instead of a list-index counter so the stream
+    remains correct even if the log is pruned, reset, or capped at max entries.
     """
     from backend.core.security import decode_token
     from fastapi import status as http_status
@@ -53,14 +57,15 @@ async def websocket_log(websocket: WebSocket, token: str = ""):
         return
 
     await websocket.accept()
-    seen = 0
+    last_sent_ts = ""
     try:
         while True:
             log = agent_service.get_log(limit=200)
-            new_entries = log[seen:]
+            new_entries = [e for e in log if e.get("timestamp", "") > last_sent_ts]
             for entry in new_entries:
                 await websocket.send_json(entry)
-            seen += len(new_entries)
+            if new_entries:
+                last_sent_ts = new_entries[-1].get("timestamp", last_sent_ts)
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass

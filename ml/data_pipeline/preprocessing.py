@@ -158,9 +158,23 @@ def run_pipeline(
     logger.info(f"Preprocessing {pair_name}")
 
     df = clean(df)
-    df = add_features(df)
 
-    train_df, val_df, test_df = split(df)
+    # Split on raw data BEFORE feature engineering so rolling stats for val/test
+    # are never computed using data that belongs to a later split.
+    # Each split uses a 59-row lookback buffer from the prior split to warm up
+    # rolling_vol_60 (which requires 60 rows); those buffer rows carry NaN for
+    # the first 59 positions and are removed by the dropna() inside add_features.
+    _BUFFER = sequence_length - 1   # 59 rows: fills the rolling warm-up window
+
+    train_raw, val_raw, test_raw = split(df)
+
+    train_df = add_features(train_raw)
+
+    _val_buf = pd.concat([train_raw.tail(_BUFFER), val_raw], ignore_index=True)
+    val_df   = add_features(_val_buf)   # buffer rows (NaN rolling stats) auto-dropped
+
+    _test_buf = pd.concat([val_raw.tail(_BUFFER), test_raw], ignore_index=True)
+    test_df   = add_features(_test_buf)
 
     # Fit scaler on train only, transform all splits
     train_df, scaler = normalize(train_df)
