@@ -74,14 +74,19 @@ class DecisionAgent(BaseAgent):
             for pair, data in forecasts.items()
         }
 
-        result = optimize_portfolio(
-            forecast_returns=forecast_returns,
-            budget=self.budget,
-            risk_tolerance=self.risk_tolerance,
-            min_weight=self.min_weight,
-            max_weight=self.max_weight,
-            investment_days=self.investment_days,
-        )
+        try:
+            result = optimize_portfolio(
+                forecast_returns=forecast_returns,
+                budget=self.budget,
+                risk_tolerance=self.risk_tolerance,
+                min_weight=self.min_weight,
+                max_weight=self.max_weight,
+                investment_days=self.investment_days,
+            )
+        except ValueError as exc:
+            self._record("lp_failed", {"error": str(exc)})
+            self.status = AgentStatus.ERROR
+            raise
 
         proposed        = result["allocations"]
         rebalance, drifts = self._needs_rebalance(proposed)

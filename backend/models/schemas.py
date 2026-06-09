@@ -2,7 +2,7 @@
 Pydantic request/response schemas for all API endpoints.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
@@ -38,6 +38,14 @@ class OptimizeRequest(BaseModel):
     min_weight:      float = Field(default=0.05, ge=0.0, le=1.0)
     max_weight:      float = Field(default=0.60, ge=0.0, le=1.0)
     investment_days: int   = Field(default=365, gt=0)
+
+    @model_validator(mode="after")
+    def check_weight_bounds(self) -> "OptimizeRequest":
+        if self.min_weight >= self.max_weight:
+            raise ValueError(
+                f"min_weight ({self.min_weight}) must be strictly less than max_weight ({self.max_weight})"
+            )
+        return self
 
 class AllocationDetail(BaseModel):
     weight_pct: float

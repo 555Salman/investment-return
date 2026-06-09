@@ -95,7 +95,7 @@ def evaluate_arima(
     test_close  = test_df["Close"].values
 
     logger.info(f"Running ARIMA{order} for {pair_name}")
-    check_stationarity(pd.Series(np.diff(np.log(train_close + 1e-8))))
+    check_stationarity(pd.Series(np.diff(np.log(np.maximum(train_close, 1e-8)))))
 
     preds = rolling_forecast(train_close, test_close, order=order)
 

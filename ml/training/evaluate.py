@@ -46,7 +46,7 @@ def sharpe_ratio(returns: np.ndarray, risk_free_rate: float = 0.02) -> float:
     """
     daily_rf = risk_free_rate / 252
     excess   = returns - daily_rf
-    if excess.std() == 0:
+    if excess.std() < 1e-10:
         return 0.0
     return float((excess.mean() / excess.std()) * np.sqrt(252))
 

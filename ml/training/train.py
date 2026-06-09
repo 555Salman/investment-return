@@ -7,6 +7,7 @@ Usage:
 
 import argparse
 import logging
+import random
 import sys
 from pathlib import Path
 
@@ -53,6 +54,7 @@ def train(
     batch_size:  int   = 64,
     epochs:      int   = 50,
     patience:    int   = 10,
+    seed:        int   = 42,
 ) -> dict:
     """
     Train the LSTM on one currency pair with early stopping.
@@ -60,7 +62,13 @@ def train(
     Returns:
         dict with best val_loss and test metrics
     """
-    logger.info(f"Training LSTM for {pair_name} on {DEVICE}")
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    logger.info(f"Training LSTM for {pair_name} on {DEVICE} (seed={seed})")
 
     X_train, y_train, X_val, y_val, X_test, y_test = load_tensors(pair_name)
 
@@ -70,6 +78,7 @@ def train(
         TensorDataset(X_train, y_train),
         batch_size=batch_size,
         shuffle=True,
+        generator=torch.Generator().manual_seed(seed),
     )
 
     model     = LSTMForecaster(input_size, hidden_size, num_layers, dropout).to(DEVICE)
@@ -141,6 +150,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size",  default=64,  type=int)
     parser.add_argument("--epochs",      default=50,  type=int)
     parser.add_argument("--patience",    default=10,  type=int)
+    parser.add_argument("--seed",        default=42,  type=int)
     args = parser.parse_args()
 
     result = train(**vars(args))
