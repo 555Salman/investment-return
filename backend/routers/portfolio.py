@@ -2,8 +2,9 @@
 Portfolio optimization endpoints.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.core.security import get_current_user
 from backend.models.schemas import OptimizeRequest
 from backend.services.forecast_service import forecast_service
 from backend.services.portfolio_service import portfolio_service
@@ -20,7 +21,7 @@ async def _get_forecast_returns() -> dict[str, float]:
 
 
 @router.post("/optimize", summary="Run LP portfolio optimization")
-async def optimize_portfolio(body: OptimizeRequest):
+async def optimize_portfolio(body: OptimizeRequest, _: dict = Depends(get_current_user)):
     """
     Runs the linear programming optimizer using LSTM forecast returns.
     Returns optimal capital allocation across the three currency pairs.
@@ -41,6 +42,7 @@ async def benchmark(
     budget: float = 10_000.0,
     investment_days: int = 365,
     risk_tolerance: str = "medium",
+    _: dict = Depends(get_current_user),
 ):
     """
     Returns a side-by-side comparison of the LP-optimised strategy
