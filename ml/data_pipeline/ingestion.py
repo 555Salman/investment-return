@@ -24,7 +24,7 @@ CURRENCY_PAIRS = {
 }
 
 START_DATE = "2020-01-01"
-END_DATE   = "2025-12-31"
+END_DATE   = "2026-06-10"
 
 RAW_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 

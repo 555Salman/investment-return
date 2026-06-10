@@ -4,10 +4,9 @@ Credentials are read from DEMO_USERNAME / DEMO_PASSWORD environment variables.
 Leave DEMO_PASSWORD unset in production to disable the demo account entirely.
 """
 
-import os
-
 from fastapi import APIRouter, HTTPException, status
 
+from backend.core.config import settings
 from backend.core.security import verify_password, create_access_token, hash_password
 from backend.models.schemas import LoginRequest, TokenResponse
 
@@ -15,14 +14,12 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 
 def _build_demo_users() -> dict[str, str]:
-    username = os.getenv("DEMO_USERNAME", "")
-    password = os.getenv("DEMO_PASSWORD", "")
-    if username and password:
-        return {username: hash_password(password)}
+    if settings.demo_username and settings.demo_password:
+        return {settings.demo_username: hash_password(settings.demo_password)}
     return {}
 
 
-# Populated at startup from env vars; empty dict → login always fails (safe default).
+# Populated at startup from settings; empty dict → login always fails (safe default).
 DEMO_USERS: dict[str, str] = _build_demo_users()
 
 
