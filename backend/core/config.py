@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Database (optional – not required for ML-only mode)
     database_url: str = "sqlite:///./data/app.db"
 
+    # Demo account
+    demo_username: str = "admin"
+    demo_password: str = ""
+
     # ML
     processed_data_dir: str = "data/processed"
     checkpoints_dir:    str = "data/checkpoints"
