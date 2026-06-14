@@ -1,0 +1,36 @@
+{
+  "trigger": "manual",
+  "timestamp": "2026-06-10T08:33:42.116650",
+  "forecasts": {
+    "EUR_USD": "0.371%",
+    "AUD_USD": "0.284%",
+    "NZD_USD": "0.302%"
+  },
+  "allocations": {
+    "EUR_USD": "5.0%",
+    "AUD_USD": "35.0%",
+    "NZD_USD": "60.0%"
+  },
+  "expected_return": "4.13%",
+  "rebalanced": true,
+  "trades": {
+    "EUR_USD": {
+      "current_pct": 0.0,
+      "proposed_pct": 5.0,
+      "delta_usd": 500.0,
+      "action": "BUY"
+    },
+    "AUD_USD": {
+      "current_pct": 0.0,
+      "proposed_pct": 35.0,
+      "delta_usd": 3500.0,
+      "action": "BUY"
+    },
+    "NZD_USD": {
+      "current_pct": 0.0,
+      "proposed_pct": 60.0,
+      "delta_usd": 6000.0,
+      "action": "BUY"
+    }
+  }
+}

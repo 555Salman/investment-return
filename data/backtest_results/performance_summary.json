@@ -1,0 +1,50 @@
+{
+  "performance": {
+    "lp_optimised": {
+      "total_return_pct": -14.2604,
+      "sharpe_ratio": 0.0246,
+      "max_drawdown_pct": -42.1911,
+      "annualised_vol_pct": 89.9397,
+      "final_value": 8573.96,
+      "initial_value": 10000.0
+    },
+    "equal_weight": {
+      "total_return_pct": 47.6912,
+      "sharpe_ratio": 1.3659,
+      "max_drawdown_pct": -41.5339,
+      "annualised_vol_pct": 106.8074,
+      "final_value": 14769.12,
+      "initial_value": 10000.0
+    },
+    "buy_and_hold": {
+      "total_return_pct": 47.6912,
+      "sharpe_ratio": 1.3659,
+      "max_drawdown_pct": -41.5339,
+      "annualised_vol_pct": 106.8074,
+      "final_value": 14769.12,
+      "initial_value": 10000.0
+    }
+  },
+  "forecast_metrics": {
+    "EUR_USD": {
+      "pair": "EUR_USD",
+      "rmse": 0.018242470920085907,
+      "mae": 0.014057997614145279,
+      "directional_accuracy": 0.46226415094339623
+    },
+    "AUD_USD": {
+      "pair": "AUD_USD",
+      "rmse": 0.0232587568461895,
+      "mae": 0.018533755093812943,
+      "directional_accuracy": 0.41509433962264153
+    },
+    "NZD_USD": {
+      "pair": "NZD_USD",
+      "rmse": 0.022795554250478745,
+      "mae": 0.01859704777598381,
+      "directional_accuracy": 0.46226415094339623
+    }
+  },
+  "budget": 10000.0,
+  "n_steps": 106
+}
